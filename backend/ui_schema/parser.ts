@@ -228,8 +228,17 @@ function inferCrudAction(method: HttpMethod, path: string): CrudAction | null {
 
 function inferResourcePath(path: string): string {
   const segments = path.split('/').filter(Boolean);
-  const first = segments.find((s) => !s.startsWith('{'));
-  return first ? `/${first}` : path;
+  if (segments.length === 0) return path;
+
+  // Use the "collection" path for the resource:
+  // - `/users/{id}` -> `/users`
+  // - `/accounts/{accountId}/users/{id}` -> `/accounts/{accountId}/users`
+  const collectionSegments = segments[segments.length - 1]!.startsWith('{')
+    ? segments.slice(0, -1)
+    : segments;
+
+  if (collectionSegments.length === 0) return path;
+  return `/${collectionSegments.join('/')}`;
 }
 
 function pickMostSpecificResourcePath(a: string, b: string): string {
