@@ -1,26 +1,7 @@
-/**
-* Convert an OpenAPI v3 document into a versioned UI schema.
-*
-* Output shape:
-* - `version`: schema version (currently `1`)
-* - `entities`: keyed by stable entity id (usually a component schema name)
-*/
 export type UiSchema = {
   version: 1;
   entities: Record<string, UiEntitySchema>;
 };
-
-export type LegacyUiSchemaEntity = {
-  entity: string;
-  list?: { endpoint: string; method: HttpMethod };
-  detail?: { endpoint: string; method: HttpMethod };
-  form?: {
-    create?: { endpoint: string; method: HttpMethod };
-    update?: { endpoint: string; method: HttpMethod };
-  };
-};
-
-export type LegacyUiSchema = LegacyUiSchemaEntity[];
 
 export type UiEntitySchema = {
   /** Stable key used to reference the entity in UI code. */
@@ -139,21 +120,17 @@ const HTTP_METHODS: Array<{ key: keyof OpenApiPathItem; method: HttpMethod }> = 
 /**
 * Convert an OpenAPI v3 document into a deterministic UI schema.
 *
-* This parser is intentionally heuristic-driven: it tries to infer entities
-* from `$ref`'d component schemas and/or from resource paths.
+* Output shape:
+* - `UiSchema` is `{ version: 1, entities }`
+* - each entity includes `views.list` (columns), `views.detail` (fields), and
+*   `views.form` (fields)
+*
+* The heuristics are intentionally simple (method/path patterns + light `$ref`
+* inference) so UI generation stays predictable for demos/prototypes.
 */
 export function parseOpenApiToUiSchema(doc: OpenApiV3Document): UiSchema {
-  if (!doc || typeof doc !== 'object') {
-    throw new Error(`Expected an OpenAPI document object, got ${typeof doc}`);
-  }
-  if (!doc.openapi) {
-    throw new Error('Expected an OpenAPI v3 document: missing `openapi` field (e.g. `openapi: 3.0.0`).');
-  }
-
-  const version = String(doc.openapi);
-  const major = version.split('.')[0];
-  if (major !== '3') {
-    throw new Error(`Expected an OpenAPI v3 document, got version "${version}". Only v3.x is supported in this demo.`);
+  if (!doc?.openapi || !doc.openapi.startsWith('3.')) {
+    throw new Error('Expected an OpenAPI v3 document (doc.openapi must start with "3.")');
   }
 
   const paths = doc.paths ?? {};
@@ -171,7 +148,7 @@ export function parseOpenApiToUiSchema(doc: OpenApiV3Document): UiSchema {
       if (!crud) continue;
 
       const resourcePath = inferResourcePath(path);
-      const responseSchema = pickOperationResponseSchema(op, method);
+      const responseSchema = pickOperationResponseSchema(op);
       const requestSchema = pickOperationRequestSchema(op);
 
       const schemaName =
@@ -194,7 +171,7 @@ export function parseOpenApiToUiSchema(doc: OpenApiV3Document): UiSchema {
         entitiesById.set(entityId, acc);
       }
 
-      acc.resourcePath = pickShortestResourcePath(acc.resourcePath, resourcePath);
+      acc.resourcePath = pickMostSpecificResourcePath(acc.resourcePath, resourcePath);
       acc.schemaName = acc.schemaName ?? schemaName;
       acc.endpoints[crud] = { method, path, operationId: op.operationId };
 
@@ -232,33 +209,6 @@ export function parseOpenApiToUiSchema(doc: OpenApiV3Document): UiSchema {
   return { version: 1, entities: entitiesOut };
 }
 
-/**
-* Compatibility wrapper for the original hackathon UI schema shape.
-*
-* Prefer `parseOpenApiToUiSchema()` for new code.
-*/
-export function parseOpenApiToLegacyUiSchema(doc: OpenApiV3Document): LegacyUiSchema {
-  const v1 = parseOpenApiToUiSchema(doc);
-  const entities = Object.values(v1.entities).sort((a, b) => a.id.localeCompare(b.id));
-
-  return entities.map((e) => ({
-    entity: e.id,
-    list: e.endpoints.list ? { endpoint: e.endpoints.list.path, method: e.endpoints.list.method } : undefined,
-    detail: e.endpoints.read ? { endpoint: e.endpoints.read.path, method: e.endpoints.read.method } : undefined,
-    form:
-      e.endpoints.create || e.endpoints.update
-        ? {
-            create: e.endpoints.create
-              ? { endpoint: e.endpoints.create.path, method: e.endpoints.create.method }
-              : undefined,
-            update: e.endpoints.update
-              ? { endpoint: e.endpoints.update.path, method: e.endpoints.update.method }
-              : undefined,
-          }
-        : undefined,
-  }));
-}
-
 function inferCrudAction(method: HttpMethod, path: string): CrudAction | null {
   const isItem = hasPathParams(path);
   switch (method) {
@@ -277,36 +227,30 @@ function inferCrudAction(method: HttpMethod, path: string): CrudAction | null {
 }
 
 function inferResourcePath(path: string): string {
-  // Heuristic: treat the last non-parameter segment as the collection name.
-  // This intentionally ignores nesting (e.g. `/accounts/{id}/users` → `/users`)
-  // to keep entity ids stable and simple for the demo, at the cost of possible
-  // collisions when the same collection name is used under multiple parents.
   const segments = path.split('/').filter(Boolean);
-  const nonParams = segments.filter((s) => !s.startsWith('{'));
-  const last = nonParams[nonParams.length - 1];
-  return last ? `/${last}` : path;
+  if (segments.length === 0) return path;
+
+  // Use the "collection" path for the resource:
+  // - `/users/{id}` -> `/users`
+  // - `/accounts/{accountId}/users/{id}` -> `/accounts/{accountId}/users`
+  const collectionSegments = segments[segments.length - 1]!.startsWith('{')
+    ? segments.slice(0, -1)
+    : segments;
+
+  if (collectionSegments.length === 0) return path;
+  return `/${collectionSegments.join('/')}`;
 }
 
-function pickShortestResourcePath(a: string, b: string): string {
+function pickMostSpecificResourcePath(a: string, b: string): string {
   if (a === b) return a;
   if (a.length !== b.length) return a.length < b.length ? a : b;
   return a.localeCompare(b) <= 0 ? a : b;
 }
 
-function pickOperationResponseSchema(op: OpenApiOperation, method: HttpMethod): JsonSchema | null {
+function pickOperationResponseSchema(op: OpenApiOperation): JsonSchema | null {
   const responses = op.responses ?? {};
-  const successCodes = Object.keys(responses).filter((code) => /^[2]\d\d$/.test(code));
-  if (successCodes.length === 0) return null;
-
-  let preferred: string | undefined;
-  if (method === 'POST' && successCodes.includes('201')) {
-    preferred = '201';
-  } else if (successCodes.includes('200')) {
-    preferred = '200';
-  } else {
-    preferred = successCodes.sort((a, b) => Number(a) - Number(b) || a.localeCompare(b))[0];
-  }
-
+  const successCodes = sortedKeys(responses).filter((code) => /^[2]\d\d$/.test(code));
+  const preferred = successCodes.find((c) => c === '200') ?? successCodes[0];
   if (!preferred) return null;
 
   const res = responses[preferred];
@@ -333,32 +277,17 @@ function pickJsonSchemaFromContent(
 function pickEntitySchema(doc: OpenApiV3Document, schemaName: string | null, candidates: JsonSchema[]): JsonSchema | null {
   if (schemaName) {
     const fromComponents = doc.components?.schemas?.[schemaName];
-    if (isEntityCandidateSchema(fromComponents)) return { $ref: `#/components/schemas/${schemaName}` };
+    if (fromComponents) return { $ref: `#/components/schemas/${schemaName}` };
   }
 
   for (const candidate of candidates) {
     const refName = inferSchemaName(candidate);
-    if (refName && isEntityCandidateSchema(doc.components?.schemas?.[refName])) {
+    if (refName && doc.components?.schemas?.[refName]) {
       return { $ref: `#/components/schemas/${refName}` };
     }
   }
 
-  const arrayOfObjects = candidates.find(
-    (c) => c.type === 'array' && c.items && (c.items.type === 'object' || c.items.properties),
-  );
-  if (arrayOfObjects) return arrayOfObjects;
-
-  const objectLike = candidates.find((c) => c.type === 'object' || c.properties);
-  if (objectLike) return objectLike;
-
   return candidates[0] ?? null;
-}
-
-function isEntityCandidateSchema(schema: JsonSchema | undefined): boolean {
-  if (!schema) return false;
-  if (schema.type === 'object' || schema.properties) return true;
-  if (schema.allOf?.length) return true;
-  return false;
 }
 
 function buildFields(doc: OpenApiV3Document, schema: JsonSchema | null): UiField[] {
@@ -461,7 +390,6 @@ function inferSchemaName(schema: JsonSchema | null): string | null {
 }
 
 function parseSchemaRef(ref: string): string | null {
-  // Demo-only: only supports component schema refs like `#/components/schemas/EntityName`.
   const prefix = '#/components/schemas/';
   if (!ref.startsWith(prefix)) return null;
   const name = ref.slice(prefix.length);
@@ -484,11 +412,10 @@ function inferPrimaryKey(fields: UiField[]): string | null {
   if (names.has('id')) return 'id';
   if (names.has('_id')) return '_id';
 
-  // Heuristic: pick the shortest name that ends with "id".
   const candidate = fields
     .map((f) => f.name)
     .filter((n) => /id$/i.test(n))
-    .sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+    .sort((a, b) => a.localeCompare(b))[0];
 
   return candidate ?? null;
 }

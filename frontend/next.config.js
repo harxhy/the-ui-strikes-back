@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  // Hackathon / monorepo convenience: allow importing the UI schema parser from `../backend`.
   experimental: {
     externalDir: true,
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
