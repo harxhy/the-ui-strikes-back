@@ -223,8 +223,9 @@ function inferCrudAction(method: HttpMethod, path: string): CrudAction | null {
 
 function inferResourcePath(path: string): string {
   const segments = path.split('/').filter(Boolean);
-  const first = segments.find((s) => !s.startsWith('{'));
-  return first ? `/${first}` : path;
+  const nonParams = segments.filter((s) => !s.startsWith('{'));
+  const last = nonParams[nonParams.length - 1];
+  return last ? `/${last}` : path;
 }
 
 function pickMostSpecificResourcePath(a: string, b: string): string {
@@ -235,8 +236,10 @@ function pickMostSpecificResourcePath(a: string, b: string): string {
 
 function pickOperationResponseSchema(op: OpenApiOperation): JsonSchema | null {
   const responses = op.responses ?? {};
-  const successCodes = sortedKeys(responses).filter((code) => /^[2]\d\d$/.test(code));
-  const preferred = successCodes.find((c) => c === '200') ?? successCodes[0];
+  const successCodes = Object.keys(responses)
+    .filter((code) => /^[2]\d\d$/.test(code))
+    .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
+  const preferred = successCodes[0];
   if (!preferred) return null;
 
   const res = responses[preferred];

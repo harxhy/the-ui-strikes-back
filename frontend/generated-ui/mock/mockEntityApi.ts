@@ -53,7 +53,6 @@ function createSeedRow(entity: UiEntitySchema, seed: number): AnyRecord {
   const row: AnyRecord = {};
   for (const f of entity.fields) {
     if (f.writeOnly) continue;
-    if (f.readOnly && !entity.primaryKey) continue;
     row[f.name] = generateValue(f, seed);
   }
 

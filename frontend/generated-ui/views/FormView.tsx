@@ -66,6 +66,9 @@ export function FormView({
   onUpdate: (input: AnyRecord) => Promise<void>;
   onCancel: () => void;
 }) {
+  const endpointKey: 'create' | 'update' = mode === 'create' ? 'create' : 'update';
+  const endpoint = entity.endpoints[endpointKey];
+
   const formFields = useMemo(() => {
     const byName = new Map(entity.fields.map((f) => [f.name, f] as const));
     return entity.views.form.fields.map((n) => byName.get(n)).filter(Boolean) as UiField[];
@@ -133,13 +136,7 @@ export function FormView({
           <VStack gap={4} style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 800 }}>{mode === 'create' ? 'Create' : 'Update'} form</div>
             <div style={{ color: 'var(--muted)', fontSize: 12 }}>
-              {mode === 'create'
-                ? entity.endpoints.create
-                  ? `${entity.endpoints.create.method} ${entity.endpoints.create.path}`
-                  : 'No create endpoint in schema'
-                : entity.endpoints.update
-                  ? `${entity.endpoints.update.method} ${entity.endpoints.update.path}`
-                  : 'No update endpoint in schema'}
+              {endpoint ? `${endpoint.method} ${endpoint.path}` : `No ${endpointKey} endpoint in schema`}
             </div>
           </VStack>
           <Button variant="secondary" onClick={onCancel}>
@@ -147,7 +144,7 @@ export function FormView({
           </Button>
         </HStack>
 
-        {!entity.endpoints[mode] ? (
+        {!endpoint ? (
           <VStack gap={10}>
             <Badge tone="danger">Unavailable</Badge>
             <div style={{ color: 'var(--muted)', fontSize: 13 }}>This schema doesn’t define a {mode} endpoint.</div>

@@ -6,6 +6,8 @@ import { parse as parseYaml } from 'yaml';
 import { parseOpenApiToUiSchema, type OpenApiV3Document } from '../../backend/ui_schema/parser';
 import { DemoClient } from '../generated-ui/DemoClient';
 
+export const dynamic = 'force-static';
+
 export default async function HomePage() {
   try {
     const openApiPath = path.resolve(process.cwd(), '..', 'demo', 'sample_openapi.yaml');
