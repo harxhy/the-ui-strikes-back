@@ -120,13 +120,8 @@ const HTTP_METHODS: Array<{ key: keyof OpenApiPathItem; method: HttpMethod }> = 
 /**
 * Convert an OpenAPI v3 document into a deterministic UI schema.
 *
-* Output shape:
-* - `UiSchema` is `{ version: 1, entities }`
-* - each entity includes `views.list` (columns), `views.detail` (fields), and
-*   `views.form` (fields)
-*
-* The heuristics are intentionally simple (method/path patterns + light `$ref`
-* inference) so UI generation stays predictable for demos/prototypes.
+* This parser is intentionally heuristic-driven: it tries to infer entities
+* from `$ref`'d component schemas and/or from resource paths.
 */
 export function parseOpenApiToUiSchema(doc: OpenApiV3Document): UiSchema {
   if (!doc?.openapi || !doc.openapi.startsWith('3.')) {
@@ -228,21 +223,21 @@ function inferCrudAction(method: HttpMethod, path: string): CrudAction | null {
 
 function inferResourcePath(path: string): string {
   const segments = path.split('/').filter(Boolean);
-  if (segments.length === 0) return path;
-
-  // Use the "collection" path for the resource:
-  // - `/users/{id}` -> `/users`
-  // - `/accounts/{accountId}/users/{id}` -> `/accounts/{accountId}/users`
-  const collectionSegments = segments[segments.length - 1]!.startsWith('{')
-    ? segments.slice(0, -1)
-    : segments;
-
-  if (collectionSegments.length === 0) return path;
-  return `/${collectionSegments.join('/')}`;
+  const first = segments.find((s) => !s.startsWith('{'));
+  return first ? `/${first}` : path;
 }
 
 function pickMostSpecificResourcePath(a: string, b: string): string {
   if (a === b) return a;
+
+  const aHasParams = hasPathParams(a);
+  const bHasParams = hasPathParams(b);
+  if (aHasParams !== bHasParams) return aHasParams ? b : a;
+
+  const aSegs = a.split('/').filter(Boolean).length;
+  const bSegs = b.split('/').filter(Boolean).length;
+  if (aSegs !== bSegs) return aSegs < bSegs ? a : b;
+
   if (a.length !== b.length) return a.length < b.length ? a : b;
   return a.localeCompare(b) <= 0 ? a : b;
 }
@@ -251,7 +246,9 @@ function pickOperationResponseSchema(op: OpenApiOperation): JsonSchema | null {
   const responses = op.responses ?? {};
   const successCodes = sortedKeys(responses).filter((code) => /^[2]\d\d$/.test(code));
   const preferred = successCodes.find((c) => c === '200') ?? successCodes[0];
-  if (!preferred) return null;
+  if (!preferred) {
+    return pickJsonSchemaFromContent(responses.default?.content);
+  }
 
   const res = responses[preferred];
   return pickJsonSchemaFromContent(res?.content);
@@ -291,6 +288,8 @@ function pickEntitySchema(doc: OpenApiV3Document, schemaName: string | null, can
 }
 
 function buildFields(doc: OpenApiV3Document, schema: JsonSchema | null): UiField[] {
+  // Only extracts first-level object properties; nested objects/arrays are
+  // treated as opaque fields.
   if (!schema) return [];
   const resolved = resolveSchema(doc, schema);
 
@@ -332,6 +331,9 @@ function resolveSchema(doc: OpenApiV3Document, schema: JsonSchema, seenRefs = ne
     const refName = parseSchemaRef(schema.$ref);
     if (!refName) return schema;
 
+    // Cyclic references are valid, but this parser intentionally doesn't attempt
+    // to model them. When a cycle is detected, we stop resolving and leave the
+    // `$ref` in place.
     if (seenRefs.has(refName)) return schema;
     seenRefs.add(refName);
 
@@ -349,6 +351,9 @@ function resolveSchema(doc: OpenApiV3Document, schema: JsonSchema, seenRefs = ne
 }
 
 function mergeAllOf(parts: JsonSchema[]): JsonSchema {
+  // OpenAPI's `allOf` can express complex composition rules. For UI schema
+  // generation we keep the logic intentionally shallow: properties are merged
+  // top-level and overlapping keys are last-writer-wins.
   const merged: JsonSchema = { type: 'object', properties: {}, required: [] };
   const required = new Set<string>();
 
@@ -455,6 +460,8 @@ function lastPathSegment(path: string): string | null {
 }
 
 function singularize(word: string): string {
+  // Intentionally naive plural handling. This is only used as a stable fallback
+  // when no schema name can be inferred.
   if (word.endsWith('ies') && word.length > 3) return `${word.slice(0, -3)}y`;
   if (word.endsWith('ses') && word.length > 3) return word.slice(0, -2);
   if (word.endsWith('s') && !word.endsWith('ss') && word.length > 1) return word.slice(0, -1);

@@ -1,38 +1,35 @@
-import React from "react";
+import { parseOpenApiToUiSchema } from '../../backend/ui_schema/parser';
+import { todoOpenApi } from '../generated-ui/demo/openapiTodo';
+import { GeneratedCrudPlayground } from '../generated-ui/demo/GeneratedCrudPlayground';
 
 export default function HomePage() {
+  const ui = parseOpenApiToUiSchema(todoOpenApi);
+  const todo = ui.entities.Todo;
+
+  if (!todo) {
+    return (
+      <main className="container">
+        <div className="card">
+          <div style={{ fontSize: 22, fontWeight: 900 }}>UI Copilot Demo</div>
+          <p className="muted">No entity named “Todo” was inferred from the sample OpenAPI doc.</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#f9fafb",
-      }}
-    >
-      <h1
-        style={{
-          fontSize: "2.5rem",
-          fontWeight: "bold",
-          marginBottom: "1rem",
-        }}
-      >
-        UI Copilot Demo
-      </h1>
-      <p
-        style={{
-          fontSize: "1.15rem",
-          color: "#555",
-          textAlign: "center",
-          maxWidth: "24rem",
-        }}
-      >
-        This is a hackathon demo for &quot;UI Copilot – Backend to UI&quot;.<br />
-        <br />
-        <strong>Generated UI components will appear here.</strong>
-      </p>
+    <main className="container stack">
+      <div className="card row-between">
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 900 }}>UI Copilot Demo</div>
+          <div className="muted">
+            Generated list / detail / form views from <span className="mono">parseOpenApiToUiSchema()</span>
+          </div>
+        </div>
+        <div className="pill">Hackathon mode</div>
+      </div>
+
+      <GeneratedCrudPlayground entity={todo} />
     </main>
   );
 }
