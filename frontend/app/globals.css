@@ -36,3 +36,22 @@ body {
 a {
   color: inherit;
 }
+
+@keyframes ui-copilot-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-copilot-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--accent);
+  display: inline-block;
+  animation: ui-copilot-spin 0.85s linear infinite;
+}

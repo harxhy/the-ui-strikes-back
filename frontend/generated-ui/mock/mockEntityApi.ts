@@ -3,14 +3,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { UiEntitySchema, UiField } from '../types';
+import { stableRowId, type AnyRecord } from '../rowId';
 
 type AsyncState<T> =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'success'; data: T };
-
-type AnyRecord = Record<string, unknown>;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,11 +18,6 @@ function sleep(ms: number) {
 function shouldFail(simulateErrors: boolean): boolean {
   if (!simulateErrors) return false;
   return Math.random() < 0.25;
-}
-
-function stableRowId(entity: UiEntitySchema, row: AnyRecord, index: number): string {
-  if (entity.primaryKey && typeof row[entity.primaryKey] === 'string') return row[entity.primaryKey] as string;
-  return `${entity.id}:${index}`;
 }
 
 function generateValue(field: UiField, seed: number): unknown {

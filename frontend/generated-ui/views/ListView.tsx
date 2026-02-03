@@ -3,7 +3,7 @@
 import type { UiEntitySchema, UiField } from '../types';
 import { Badge, Button, HStack, Panel, Spinner, VStack } from '../tambo';
 
-type AnyRecord = Record<string, unknown>;
+import { stableRowId, type AnyRecord } from '../rowId';
 
 function formatValue(field: UiField | undefined, value: unknown): string {
   if (value === null || value === undefined) return '—';
@@ -15,11 +15,6 @@ function formatValue(field: UiField | undefined, value: unknown): string {
     return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
   }
   return String(value);
-}
-
-function rowId(entity: UiEntitySchema, row: AnyRecord, index: number): string {
-  if (entity.primaryKey && typeof row[entity.primaryKey] === 'string') return row[entity.primaryKey] as string;
-  return `${entity.id}:${index}`;
 }
 
 export function ListView({
@@ -111,7 +106,7 @@ export function ListView({
               </thead>
               <tbody>
                 {rows.map((r, i) => {
-                  const id = rowId(entity, r, i);
+                  const id = stableRowId(entity, r, i);
                   const isSelected = id === selectedId;
                   return (
                     <tr

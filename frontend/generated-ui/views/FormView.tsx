@@ -105,6 +105,7 @@ export function FormView({
     const missing: string[] = [];
     for (const f of formFields) {
       if (!f.required) continue;
+      // For the demo we don’t enforce booleans as "required" – only empty text-like fields.
       if (f.type === 'boolean') continue;
       const raw = values[f.name];
       if (typeof raw !== 'string' || raw.trim() === '') missing.push(f.name);

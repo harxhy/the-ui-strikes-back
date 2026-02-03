@@ -236,20 +236,8 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
 export function Spinner({ label = 'Loading…' }: { label?: string }) {
   return (
     <HStack gap={10}>
-      <span
-        aria-hidden
-        style={{
-          width: 14,
-          height: 14,
-          borderRadius: '50%',
-          border: '2px solid rgba(255,255,255,0.25)',
-          borderTopColor: 'var(--accent)',
-          display: 'inline-block',
-          animation: 'spin 0.85s linear infinite',
-        }}
-      />
+      <span aria-hidden className="ui-copilot-spinner" />
       <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 600 }}>{label}</span>
-      <style>{'@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }'}</style>
     </HStack>
   );
 }
