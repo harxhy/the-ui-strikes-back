@@ -25,7 +25,7 @@ export function formatValue(field: UiField | undefined, value: unknown): string 
     try {
       return JSON.stringify(value);
     } catch {
-      return String(value);
+      return '[unserializable]';
     }
   }
 

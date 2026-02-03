@@ -2,10 +2,10 @@ import { parseOpenApiToUiSchema } from '../../backend/ui_schema/parser';
 import { todoOpenApi } from '../generated-ui/demo/openapiTodo';
 import { GeneratedCrudPlayground } from '../generated-ui/demo/GeneratedCrudPlayground';
 
-export default function HomePage() {
-  const ui = parseOpenApiToUiSchema(todoOpenApi);
-  const todo = ui.entities.Todo;
+const ui = parseOpenApiToUiSchema(todoOpenApi);
+const todo = ui.entities.Todo;
 
+export default function HomePage() {
   if (!todo) {
     return (
       <main className="container">
