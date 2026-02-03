@@ -11,8 +11,12 @@ import { ListView } from './views/ListView';
 
 export function DemoClient({ openApiYaml, uiSchema }: { openApiYaml: string; uiSchema: UiSchema }) {
   const entityIds = useMemo(() => Object.keys(uiSchema.entities).sort((a, b) => a.localeCompare(b)), [uiSchema.entities]);
-  const [activeEntityId, setActiveEntityId] = useState<string>(entityIds[0] ?? '');
+  const [activeEntityId, setActiveEntityId] = useState<string>(() => entityIds[0] ?? '');
   const [simulateErrors, setSimulateErrors] = useState(false);
+
+  useEffect(() => {
+    setActiveEntityId((current) => (entityIds.includes(current) ? current : entityIds[0] ?? ''));
+  }, [entityIds]);
 
   const entity = activeEntityId ? uiSchema.entities[activeEntityId] : undefined;
   const uiSchemaJson = useMemo(() => JSON.stringify(uiSchema, null, 2), [uiSchema]);

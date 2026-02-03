@@ -71,7 +71,12 @@ export function FormView({
 
   const formFields = useMemo(() => {
     const byName = new Map(entity.fields.map((f) => [f.name, f] as const));
-    return entity.views.form.fields.map((n) => byName.get(n)).filter(Boolean) as UiField[];
+    return entity.views.form.fields
+      .map((n) => byName.get(n))
+      .filter((f): f is UiField => {
+        if (!f) return false;
+        return !f.readOnly;
+      });
   }, [entity.fields, entity.views.form.fields]);
 
   const [values, setValues] = useState<Record<string, unknown>>({});

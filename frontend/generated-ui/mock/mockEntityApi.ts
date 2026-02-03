@@ -132,10 +132,11 @@ export function useMockEntityApi(entity: UiEntitySchema, { simulateErrors }: { s
       setMutationState({ status: 'success', data: null });
 
       const id = stableRowId(entity, next, nextRows.length - 1);
-      await read(id);
+      setSelectedId(id);
+      setDetailState({ status: 'success', data: next });
       return next;
     },
-    [entity, read, simulateErrors],
+    [entity, simulateErrors],
   );
 
   const update = useCallback(

@@ -1,3 +1,10 @@
+/**
+* Convert an OpenAPI v3 document into a versioned UI schema.
+*
+* Output shape:
+* - `version`: schema version (currently `1`)
+* - `entities`: keyed by stable entity id (usually a component schema name)
+*/
 export type UiSchema = {
   version: 1;
   entities: Record<string, UiEntitySchema>;
@@ -143,7 +150,7 @@ export function parseOpenApiToUiSchema(doc: OpenApiV3Document): UiSchema {
       if (!crud) continue;
 
       const resourcePath = inferResourcePath(path);
-      const responseSchema = pickOperationResponseSchema(op);
+      const responseSchema = pickOperationResponseSchema(op, method);
       const requestSchema = pickOperationRequestSchema(op);
 
       const schemaName =
@@ -234,12 +241,20 @@ function pickMostSpecificResourcePath(a: string, b: string): string {
   return a.localeCompare(b) <= 0 ? a : b;
 }
 
-function pickOperationResponseSchema(op: OpenApiOperation): JsonSchema | null {
+function pickOperationResponseSchema(op: OpenApiOperation, method: HttpMethod): JsonSchema | null {
   const responses = op.responses ?? {};
-  const successCodes = Object.keys(responses)
-    .filter((code) => /^[2]\d\d$/.test(code))
-    .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
-  const preferred = successCodes[0];
+  const successCodes = Object.keys(responses).filter((code) => /^[2]\d\d$/.test(code));
+  if (successCodes.length === 0) return null;
+
+  let preferred: string | undefined;
+  if (method === 'POST' && successCodes.includes('201')) {
+    preferred = '201';
+  } else if (successCodes.includes('200')) {
+    preferred = '200';
+  } else {
+    preferred = successCodes.sort((a, b) => Number(a) - Number(b) || a.localeCompare(b))[0];
+  }
+
   if (!preferred) return null;
 
   const res = responses[preferred];
@@ -275,6 +290,14 @@ function pickEntitySchema(doc: OpenApiV3Document, schemaName: string | null, can
       return { $ref: `#/components/schemas/${refName}` };
     }
   }
+
+  const objectLike = candidates.find((c) => c.type === 'object' || c.properties);
+  if (objectLike) return objectLike;
+
+  const arrayOfObjects = candidates.find(
+    (c) => c.type === 'array' && c.items && (c.items.type === 'object' || c.items.properties),
+  );
+  if (arrayOfObjects) return arrayOfObjects;
 
   return candidates[0] ?? null;
 }
