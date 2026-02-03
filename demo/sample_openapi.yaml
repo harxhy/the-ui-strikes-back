@@ -1,0 +1,96 @@
+openapi: 3.0.0
+info:
+  title: UI Copilot Demo API
+  version: 1.0.0
+paths:
+  /todos:
+    get:
+      operationId: listTodos
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+    post:
+      operationId: createTodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+  /todos/{id}:
+    get:
+      operationId: getTodo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+    patch:
+      operationId: updateTodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoUpdate'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+    delete:
+      operationId: deleteTodo
+      responses:
+        '204':
+          description: Deleted
+components:
+  schemas:
+    Todo:
+      type: object
+      required:
+        - id
+        - title
+        - done
+      properties:
+        id:
+          type: string
+          readOnly: true
+        title:
+          type: string
+        done:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+    TodoCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+    TodoUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        done:
+          type: boolean
